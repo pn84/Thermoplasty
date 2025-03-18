@@ -2,6 +2,7 @@ library(tidyverse)
 library(rlist)
 library(readxl)
 library(ggpubr)
+library(rempsyc)
 
 # Select relevant qct columns
 qct_cols = c(
@@ -31,6 +32,8 @@ page3 = read_csv('data/thermoplasty_20250219_181925_corrected.csv') %>%
     DB_StudyDateTime = parse_datetime(DB_StudyDateTime, format = '%d/%m/%Y  %H:%M')
     # DB_SeriesDateTime = parse_datetime(DB_SeriesDateTime, format = '%d/%m/%Y  %H:%M')
   )
+page4 = read_csv('data/thermoplasty_20250311_165300_corrected.csv') %>%
+  mutate(DB_StudyDateTime = parse_datetime(DB_StudyDateTime, format = '%d/%m/%Y  %H:%M'))
 
 # airway fields
 airway_cols = c()
@@ -49,7 +52,7 @@ qct_cols = append(qct_cols, names(select(page1, contains("AirTrap"))))
 airtrap_cols = qct_cols[grep("AirTrap", qct_cols)]
 page1 = page1 %>% select(qct_cols)
 page2 = page2 %>% select(qct_cols)
-
+page4 = page4 %>% select(qct_cols)
 # Correct a wrong StudyDescription
 # correction = page1 %>%
 #   filter(
@@ -64,28 +67,28 @@ page2 = page2 %>% select(qct_cols)
 
 
 # fit lm of air trapping ~ volumes
-qct = bind_rows(page1, page2, page3) %>%
-  select(DB_PatientName, DB_ImageType, DB_StudyInstanceUid, DB_StudyDescription, DB_SeriesDescription, `Volume(cc)_WholeLung`, `AdvAirTrap_Ovr_fAT(%)_WholeLung`) %>%
-  # select(DB_PatientName, DB_StudyInstanceUid, DB_SeriesDescription, qct_cols) %>%
-  filter(
-    # Drop DERIVED data
-    !str_detect(DB_ImageType, 'DERIVED')
-  ) %>%
-  filter(!is.na(`Volume(cc)_WholeLung`)) %>%
-  mutate(series_type = str_split_i(DB_SeriesDescription, "_", -1)) %>%
-  pivot_wider(
-    names_from = series_type,
-    values_from = `Volume(cc)_WholeLung`
-  ) %>%
-  group_by(DB_PatientName, DB_StudyInstanceUid) %>%
-  fill(everything(), .direction = "downup") %>%
-  distinct() %>%
-  mutate(diff = INSPIRATION - EXPIRATION)
-m = lm(qct$`AdvAirTrap_Ovr_fAT(%)_WholeLung` ~ qct$diff)
-summary(m)
+# qct = bind_rows(page1, page2, page3, page4) %>%
+#   select(DB_PatientName, DB_ImageType, DB_StudyInstanceUid, DB_StudyDescription, DB_SeriesDescription, `Volume(cc)_WholeLung`, `AdvAirTrap_Ovr_fAT(%)_WholeLung`) %>%
+#   # select(DB_PatientName, DB_StudyInstanceUid, DB_SeriesDescription, qct_cols) %>%
+#   filter(
+#     # Drop DERIVED data
+#     !str_detect(DB_ImageType, 'DERIVED')
+#   ) %>%
+#   filter(!is.na(`Volume(cc)_WholeLung`)) %>%
+#   mutate(series_type = str_split_i(DB_SeriesDescription, "_", -1)) %>%
+#   pivot_wider(
+#     names_from = series_type,
+#     values_from = `Volume(cc)_WholeLung`
+#   ) %>%
+#   group_by(DB_PatientName, DB_StudyInstanceUid) %>%
+#   fill(everything(), .direction = "downup") %>%
+#   distinct() %>%
+#   mutate(diff = INSPIRATION - EXPIRATION)
+# m = lm(qct$`AdvAirTrap_Ovr_fAT(%)_WholeLung` ~ qct$diff)
+# summary(m)
 
 # merge qct pages
-qct = bind_rows(page1, page2, page3) %>%
+qct = bind_rows(page1, page2, page3, page4) %>%
   select(DB_PatientName, DB_StudyInstanceUid, DB_SeriesDescription, qct_cols) %>%
   filter(
     # Drop DERIVED data
@@ -213,7 +216,9 @@ t = df %>%
     "FEV1/FVC (% pred)" = paste(round(mean(`Post BD FEV1/FVC Ratio (%)`, na.rm = TRUE), 2), " ± ", round(sd(`Post BD FEV1/FVC Ratio (%)`, na.rm = TRUE), 2), sep = "")
   )
 
-pretty_table(t(t))
+my_table = as.data.frame(t(t))
+
+# write_csv(my_table, "my_table.csv")
 
 
 #####################             ANALYSIS             #########################
@@ -243,34 +248,85 @@ airtrap_df = df %>% select(PatientID, site, timepoint, airtrap_cols) # %>%
   #   names_to = c(".value", "timepoint"),
   #   names_pattern = "(.+_.+)_(.+)"
   # )
+# qct_cols = qct_cols[grep("FWHM", qct_cols)]
+# qct_cols = c("la_LevelWhole_WholeLung")
 
 
-# for(var in airtrap_cols) {
-  # formula = as.formula(paste(var, '~ timepoint'))
-  # print(formula)
-  # print(t.test(formula,
-  #              data = airtrap_df,
-  #              alternative = 'two.sided',
-  #              paired = TRUE))
-  # print(paste("Plotting:", var))
-  # p = ggboxplot(airtrap_df, x = "timepoint", y = var,
-  #               color = "timepoint", palette = c("#00AFBB", "#E7B800"),
-  #               ylab = var, xlab = "timepoint")
-  # print(p)
-  # d = ggplot(airtrap_df , aes(x = .data[[var]], col = timepoint)) + 
-  #   geom_density() +
-  #   theme_bw()
-  # print(d)
-  # l = ggplot(airtrap_df,
-  #            aes(
-  #              x = timepoint,
-  #              y = .data[[var]],
-  #              group = PatientID,
-  #              color = PatientID)) + 
-  #   geom_line() +
-  #   facet_wrap(vars(site))
-  # print(l)
-# }
+
+df = df %>%
+  select(PatientID, timepoint, site, contains("la_"))
+
+longer_df = df %>%
+  pivot_longer(
+    contains("la_"),
+      names_to = c("level", "region"),
+      names_pattern = "la_Level(.+)_(.+)",
+    values_to = "Luminal area"
+  )
+
+longer_df = longer_df %>%
+  filter(
+    level %in% c("5", "6"),
+    region != "Whole"
+    ) %>%
+  mutate(`Luminal area` = na_if(`Luminal area`, 0.0)) %>%
+  filter(!is.na(`Luminal area`))
+
+l = ggplot(filter(longer_df, level == "5"),
+           aes(
+             x = timepoint,
+             y = `Luminal area`,
+             color = PatientID,
+             group = PatientID
+             )) +
+  geom_line() +
+  facet_wrap(vars(region)) +
+  labs(
+    title = "Luminal area of generation 5 airways in different lobes"
+  ) +
+  theme(legend.position="none") +
+  ylab("Luminal area (mm^2)")
+print(l)
+ggsave("spaghetti_la_level5.png")
+
+for(var in qct_cols) {
+# formula = as.formula(paste(var, '~ timepoint'))
+# print(formula)
+# print(t.test(formula,
+#              data = airtrap_df,
+#              alternative = 'two.sided',
+#              paired = TRUE))
+print(paste("Plotting:", var))
+# p = ggboxplot(df, x = "timepoint", y = var,
+#               color = "timepoint", palette = c("#00AFBB", "#E7B800"),
+#               ylab = var, xlab = "timepoint")
+print(p)
+# d = ggplot(df , aes(x = .data[[var]], col = timepoint)) +
+#   geom_density() +
+#   theme_bw()
+# print(d)
+l = ggplot(df,
+           aes(
+             x = timepoint,
+             y = {{ var }},
+             group = PatientID,
+             color = PatientID)) +
+  geom_line() +
+  facet_wrap(vars(site))
+print(l)
+}
+
+
+l = ggplot(df,
+           aes(
+             x = timepoint,
+             y = {{ var }},
+             group = PatientID,
+             color = PatientID)) +
+  geom_line() +
+  facet_wrap(vars(site))
+print(l)
+ggsave("spaghetti_la_.png")
 
 # diffs = airtrap_df %>%
 #   group_by(PatientID) %>%
@@ -292,8 +348,6 @@ paired_data <-
 # Perform paired t-test
 t.test(paired_data$BASELINE, paired_data$FOLLOWUP, paired = TRUE)
 
-
 paired_data %>%
   ggplot(mapping = aes(x = diff)) +
   geom_density()
-
