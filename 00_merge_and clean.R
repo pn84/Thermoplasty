@@ -376,12 +376,12 @@ for (i in seq_along(ylims)) {
   geom_boxplot(
     data = filter(plot_df, timepoint == 'BASELINE'),
     mapping = aes(y = `Luminal area`),
-    position = position_nudge(x = 0.8),
+    position = position_nudge(x = 0.6),
     width = 0.15) +
   geom_boxplot(
     data = filter(plot_df, timepoint == 'FOLLOWUP'),
     aes(y = `Luminal area`),
-    position = position_nudge(x = 2.2),
+    position = position_nudge(x = 2.4),
     width = 0.15) +
   facet_wrap(vars(region)) +
   labs(
@@ -484,6 +484,15 @@ blood_eos = df %>%
   select(PatientID, Blood_eos, Blood_eos_cat)
 
 # Mucus plug plot by lobe
+value_counts <- mucus_plugging %>%
+  left_join(timeseries_categories) %>%
+  inner_join(blood_eos) %>%
+  filter(lobe != "WholeLung") %>%
+  group_by(PatientID, lobe) %>%
+  select(PatientID,timepoint, lobe, lobe_score) %>%
+  distinct() %>%
+  ungroup() %>% group_by(timepoint, lobe) %>%
+  count(lobe_score)
 mucus_plugging %>%
   left_join(timeseries_categories) %>%
   inner_join(blood_eos) %>%
@@ -493,15 +502,23 @@ mucus_plugging %>%
   distinct() %>%
   ggplot() +
   geom_line(aes(x = timepoint, y = lobe_score, group = PatientID, colour = Blood_eos_cat)) +
+  # geom_point(aes(x = timepoint, y = lobe_score, group = PatientID, colour = Blood_eos_cat)) +
+  # Add value count labels just left of the plot
+  geom_text(
+    data = value_counts,
+    aes(x = ifelse(timepoint == "BASELINE", 0.9, 2.1), y = lobe_score, label = n),
+    inherit.aes = FALSE,
+    hjust = ifelse(value_counts$timepoint == "BASELINE", 1, 0)
+  ) +
   geom_boxplot(
     data = filter(mucus_plugging, timepoint == 'BASELINE', lobe != "WholeLung"),
     aes(y = lobe_score),
-    position = position_nudge(x = 0.8),
+    position = position_nudge(x = 0.6),
     width = 0.15) +
   geom_boxplot(
     data = filter(mucus_plugging, timepoint == 'FOLLOWUP', lobe != "WholeLung"),
     aes(y = lobe_score),
-    position = position_nudge(x = 2.2),
+    position = position_nudge(x = 2.4),
     width = 0.15) +
   facet_wrap(~ lobe) +
   # theme(legend.position="none") + 
@@ -509,8 +526,23 @@ mucus_plugging %>%
   labs(
     title = "Mucus score by lobe over time",
     colour = "Blood eosinophils") +
-  xlab("Timepoint")
+  xlab("Timepoint") +
+  scale_y_continuous(
+    limits = c(0, 4),          # Set range of y-axis
+    breaks = seq(0, 4, by = 1) # Tick marks every 1 unit
+  )
 ggsave('mucus_plug_eos_spaghetti_by_lobe.png')
+
+
+value_counts <- mucus_plugging %>%
+  left_join(timeseries_categories) %>%
+  inner_join(blood_eos) %>%
+  filter(lobe == "WholeLung") %>%
+  group_by(PatientID) %>%
+  select(PatientID,timepoint, mucus_score) %>%
+  distinct() %>%
+  ungroup() %>% group_by(timepoint) %>%
+  count(mucus_score)
 
 # Total mucus score over time by blood_eos_cat
 mucus_plugging %>%
@@ -524,52 +556,194 @@ mucus_plugging %>%
   geom_boxplot(
     data = filter(mucus_plugging, timepoint == 'BASELINE', lobe == "WholeLung"),
     aes(y = mucus_score),
-    position = position_nudge(x = 0.8),
+    position = position_nudge(x = 0.6),
     width = 0.15) +
   geom_boxplot(
     data = filter(mucus_plugging, timepoint == 'FOLLOWUP', lobe == "WholeLung"),
     aes(y = mucus_score),
-    position = position_nudge(x = 2.2),
+    position = position_nudge(x = 2.4),
     width = 0.15) +
+  # geom_point(aes(x = timepoint, y = mucus_score, group = PatientID, colour = Blood_eos_cat)) +
+  # Add value count labels just left of the plot
+  geom_text(
+    data = value_counts,
+    aes(x = ifelse(timepoint == "BASELINE", 0.9, 2.1), y = mucus_score, label = n),
+    inherit.aes = FALSE,
+    hjust = ifelse(value_counts$timepoint == "BASELINE", 1, 0)
+  ) +
   # theme(legend.position="none") + 
   ylab("Mucus score") +
   labs(
     title = "Total mucus score over time",
     colour = "Blood eosinophils") +
-  xlab("Timepoint")
+  xlab("Timepoint") +
+  scale_y_continuous(
+    limits = c(0, 15),          # Set range of y-axis
+    breaks = seq(0, 15, by = 1) # Tick marks every 1 unit
+  ) +
+  theme(panel.grid.minor = element_blank())
 ggsave('mucus_plug_eos_spaghetti_total.png')
 
-# Total mucus score over time by daydiff_cat
+
+value_counts <- mucus_plugging %>%
+  left_join(timeseries_categories) %>%
+  inner_join(blood_eos) %>%
+  filter(lobe == "WholeLung") %>%
+  group_by(PatientID) %>%
+  select(PatientID, timepoint, Blood_eos_cat, mucus_score) %>%
+  distinct() %>%
+  ungroup() %>% group_by(timepoint, Blood_eos_cat) %>%
+  count(mucus_score)
+
+# Total mucus score over time by eos cat (faceted)
 mucus_plugging %>%
   left_join(timeseries_categories) %>%
   inner_join(blood_eos) %>%
+  filter(lobe == "WholeLung") %>%
+  arrange(PatientID) %>%
+  ggplot() +
+  geom_line(aes(x = timepoint, y = mucus_score, group = PatientID, colour = Blood_eos_cat)) + 
+  geom_hline(yintercept = 4, alpha = 0.8, linetype = "dashed") +
+  geom_boxplot(
+    data = filter(mucus_plugging, timepoint == 'BASELINE', lobe == "WholeLung"),
+    aes(y = mucus_score),
+    position = position_nudge(x = 0.6),
+    width = 0.15) +
+  geom_boxplot(
+    data = filter(mucus_plugging, timepoint == 'FOLLOWUP', lobe == "WholeLung"),
+    aes(y = mucus_score),
+    position = position_nudge(x = 2.4),
+    width = 0.15) +
+  # geom_point(aes(x = timepoint, y = mucus_score, group = PatientID, colour = Blood_eos_cat)) +
+  # Add value count labels just left of the plot
+  geom_text(
+    data = value_counts,
+    aes(x = ifelse(timepoint == "BASELINE", 0.9, 2.1), y = mucus_score, label = n),
+    inherit.aes = FALSE,
+    hjust = ifelse(value_counts$timepoint == "BASELINE", 1, 0)
+  ) +
+  theme(legend.position="none") +
+  ylab("Mucus score") +
+  labs(
+    title = "Total mucus score over time split by blood eos category",
+    colour = "Blood eosinophils") +
+  xlab("Timepoint") +
+  scale_y_continuous(
+    limits = c(0, 15),          # Set range of y-axis
+    breaks = seq(0, 15, by = 1) # Tick marks every 1 unit
+  ) +
+  theme(panel.grid.minor = element_blank()) +
+  facet_wrap( ~ Blood_eos_cat)
+ggsave('mucus_plug_eos_spaghetti_total_faceted.png')
+
+# Total mucus score over time by daydiff_cat
+daydiff_cat = mucus_plugging %>%
+  left_join(timeseries_categories) %>%
+  # inner_join(blood_eos) %>%
   mutate(
     daydiff_cat = factor(daydiff_cat,
                          levels = c("CT on visit date", "CT before visit date", "CT after visit date"),
                          labels = c("CT on pre-BT1 visit", "CT before pre-BT1 visit", "CT on BT1 visit"))
   ) %>%
   filter(lobe == "WholeLung") %>%
-  arrange(PatientID) %>%
+  arrange(PatientID)
+
+# descriptive stats for mucus plugging
+filter(mucus_plugging, timepoint == 'BASELINE', lobe == "WholeLung") %>%
+  ungroup() %>%
+  summarise(
+    n = n(),
+    median = median(mucus_score),
+    mean = mean(mucus_score),
+    q25 = quantile(mucus_score, 0.25),
+    q75 = quantile(mucus_score, 0.75)
+  )
+
+filter(mucus_plugging, timepoint == 'FOLLOWUP', lobe == "WholeLung") %>%
+  ungroup() %>%
+  summarise(
+    n = n(),
+    median = median(mucus_score),
+    mean = mean(mucus_score),
+    q25 = quantile(mucus_score, 0.25),
+    q75 = quantile(mucus_score, 0.75)
+  )
+## normality test for mucus plugging - not normally distributed
+# shapiro.test(filter(mucus_plugging, timepoint == 'BASELINE', lobe == "WholeLung")$mucus_score)
+# hist(filter(mucus_plugging, timepoint == 'BASELINE', lobe == "WholeLung")$mucus_score)
+# hist(filter(mucus_plugging, timepoint == 'FOLLOWUP', lobe == "WholeLung")$mucus_score)
+
+
+value_counts <- mucus_plugging %>%
+  left_join(timeseries_categories) %>%
+  filter(lobe == "WholeLung") %>%
+  group_by(PatientID) %>%
+  select(PatientID, timepoint, mucus_score) %>%
+  distinct() %>%
+  ungroup() %>% group_by(timepoint) %>%
+  count(mucus_score)
+
+daydiff_cat %>%
   ggplot() +
   geom_line(aes(x = timepoint, y = mucus_score, group = PatientID, colour = daydiff_cat)) + 
   geom_hline(yintercept = 4, alpha = 0.8, linetype = "dashed") +
   geom_boxplot(
     data = filter(mucus_plugging, timepoint == 'BASELINE', lobe == "WholeLung"),
     aes(y = mucus_score),
-    position = position_nudge(x = 0.8),
+    position = position_nudge(x = 0.6),
     width = 0.15) +
   geom_boxplot(
     data = filter(mucus_plugging, timepoint == 'FOLLOWUP', lobe == "WholeLung"),
     aes(y = mucus_score),
-    position = position_nudge(x = 2.2),
+    position = position_nudge(x = 2.4),
     width = 0.15) +
+  geom_text(
+    data = value_counts,
+    aes(x = ifelse(timepoint == "BASELINE", 0.9, 2.1), y = mucus_score, label = n),
+    inherit.aes = FALSE,
+    hjust = ifelse(value_counts$timepoint == "BASELINE", 1, 0)
+  ) +
   # theme(legend.position="none") + 
   ylab("Mucus score") +
   labs(
     title = "Total mucus score over time",
     colour = "") +
   xlab("Timepoint")
+
 ggsave('mucus_plug_daydiff_spaghetti_total.png')
+
+daydiff_cat %>%
+  ggplot() +
+  geom_line(aes(x = timepoint, y = mucus_score, group = PatientID)) + 
+  geom_hline(yintercept = 4, alpha = 0.8, linetype = "dashed") +
+  geom_boxplot(
+    data = filter(mucus_plugging, timepoint == 'BASELINE', lobe == "WholeLung"),
+    aes(y = mucus_score),
+    position = position_nudge(x = 0.6),
+    width = 0.15) +
+  geom_boxplot(
+    data = filter(mucus_plugging, timepoint == 'FOLLOWUP', lobe == "WholeLung"),
+    aes(y = mucus_score),
+    position = position_nudge(x = 2.4),
+    width = 0.15) +
+  geom_text(
+    data = value_counts,
+    aes(x = ifelse(timepoint == "BASELINE", 0.9, 2.1), y = mucus_score, label = n),
+    inherit.aes = FALSE,
+    hjust = ifelse(value_counts$timepoint == "BASELINE", 1, 0)
+  ) +
+  theme(legend.position="none") +
+  ylab("Mucus score") +
+  labs(
+    title = "Total mucus score over time",
+    colour = "") +
+  xlab("Timepoint") +
+  scale_y_continuous(
+    limits = c(0, 15),          # Set range of y-axis
+    breaks = seq(0, 15, by = 1) # Tick marks every 1 unit
+  ) +
+  theme(panel.grid.minor = element_blank())
+ggsave('mucus_plug_spaghetti_total.png')
 
 # Spirometry plots
 clinical_data %>%
@@ -603,11 +777,13 @@ clinical_data %>%
 ggsave('FEV1_FVC over time.png')
 
 # Steroid plots
+ocs_premedication_before_CT = c("T030002", "T030003", "T030009", "T040005")
 plot_df = mucus_plugging %>%
   filter(region == "Total") %>%
   left_join(df) %>%
   mutate(
     OCS_maintenance_cat = case_when(
+      PatientID %in% ocs_premedication_before_CT ~ "yes",
       OCS_maintenance_dose <= 0 ~ "no",
       OCS_maintenance_dose > 0 ~ "yes"
     ),
@@ -618,16 +794,16 @@ plot_df = mucus_plugging %>%
   ungroup()
 
 # Scatterplot of Mucus score over OCS maintenance dose by timepoint
-plot_df %>%
-  ggplot(mapping = aes(x = OCS_maintenance_dose, y = mucus_score, colour = timepoint)) +
-  geom_jitter(width = 0.3, height = 0.2) + 
-  theme_bw() + 
-  facet_wrap(~ timepoint) +
-  theme(legend.position="none") +
-  xlab("OCS maintenance dose (mg)") +
-  ylab("Mucus score") + 
-  labs(title = "Mucus score over OCS maintenance dose by timepoint")
-ggsave('scatterplot_Mucus_OCS_maintenance.png')
+# plot_df %>%
+#   ggplot(mapping = aes(x = OCS_maintenance_dose, y = mucus_score, colour = timepoint)) +
+#   geom_jitter(width = 0.3, height = 0.2) + 
+#   theme_bw() + 
+#   facet_wrap(~ timepoint) +
+#   theme(legend.position="none") +
+#   xlab("OCS maintenance dose (mg)") +
+#   ylab("Mucus score") + 
+#   labs(title = "Mucus score over OCS maintenance dose by timepoint")
+# ggsave('scatterplot_Mucus_OCS_maintenance.png')
 
 # plot_df %>%
 #   ggplot(mapping = aes(x = OCS_inhaled_BDP_eq, y = mucus_score, colour = timepoint)) +
@@ -637,39 +813,57 @@ ggsave('scatterplot_Mucus_OCS_maintenance.png')
 #   xlim(c(0,4000)) +
 #   theme(legend.position="none")
 
+value_counts <- plot_df %>%
+  left_join(timeseries_categories) %>%
+  filter(lobe == "WholeLung") %>%
+  group_by(PatientID) %>%
+  select(PatientID, timepoint, OCS_maintenance_cat, mucus_score) %>%
+  distinct() %>%
+  ungroup() %>% group_by(timepoint, OCS_maintenance_cat) %>%
+  count(mucus_score)
 plot_df %>%
   ggplot(mapping = aes(x = timepoint, y = mucus_score)) +
   geom_line(aes(group = PatientID, colour = OCS_maintenance_cat)) + 
   geom_boxplot(
     data = filter(plot_df, timepoint == 'BASELINE', lobe == "WholeLung"),
     aes(y = mucus_score),
-    position = position_nudge(x = -0.2),
+    position = position_nudge(x = -0.4),
     width = 0.15) +
   geom_boxplot(
     data = filter(plot_df, timepoint == 'FOLLOWUP', lobe == "WholeLung"),
     aes(y = mucus_score),
-    position = position_nudge(x = 0.2),
+    position = position_nudge(x = 0.4),
     width = 0.15) +
+  geom_text(
+    data = value_counts,
+    aes(x = ifelse(timepoint == "BASELINE", 0.9, 2.1), y = mucus_score, label = n),
+    inherit.aes = FALSE,
+    hjust = ifelse(value_counts$timepoint == "BASELINE", 1, 0)
+  ) +
   theme(legend.position="none") +
   ylab("Mucus score") +
   labs(title = "Total mucus score with and without maintenance OCS") +
   facet_wrap( ~ OCS_maintenance_cat) +
   theme(legend.position="none") +
-  xlab("Timepoint")
+  xlab("Timepoint") +
+  scale_y_continuous(
+    limits = c(0, 15),          # Set range of y-axis
+    breaks = seq(0, 15, by = 1) # Tick marks every 1 unit
+  ) +
+  theme(panel.grid.minor = element_blank())
 ggsave("spaghetti_Mucus_score_over_time_by_maintenance_OCS.png")
   
 plot_df %>%
   group_by(OCS_maintenance_cat, timepoint) %>%
   summarise(
+    n = n(),
     mean_mucus_score = mean(mucus_score),
-    median_mucus_score = median(mucus_score)
+    median_mucus_score = median(mucus_score),
+    q25 = quantile(mucus_score, 0.25),
+    q75 = quantile(mucus_score, 0.75)
     )
 
 
-# plot_df %>%
-#   filter(OCS_maintenance_cat == "yes") %>%
-#   select(PatientID, timepoint, mucus_score) %>%
-#   View()
 # FVC / Volume scatterplot and histogram
 # df %>% ggplot(aes(x = `Post BD FVC (L)`, y = `Volume(cc)_WholeLung` / 1000, colour = timepoint)) +
 #   geom_point()
