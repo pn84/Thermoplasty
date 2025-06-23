@@ -596,21 +596,22 @@ value_counts <- mucus_plugging %>%
   count(mucus_score)
 
 # Total mucus score over time by eos cat (faceted)
-mucus_plugging %>%
+plot_df = mucus_plugging %>%
   left_join(timeseries_categories) %>%
   inner_join(blood_eos) %>%
   filter(lobe == "WholeLung") %>%
-  arrange(PatientID) %>%
+  arrange(PatientID)
+plot_df %>%
   ggplot() +
   geom_line(aes(x = timepoint, y = mucus_score, group = PatientID, colour = Blood_eos_cat)) + 
   geom_hline(yintercept = 4, alpha = 0.8, linetype = "dashed") +
   geom_boxplot(
-    data = filter(mucus_plugging, timepoint == 'BASELINE', lobe == "WholeLung"),
+    data = filter(plot_df, timepoint == 'BASELINE', lobe == "WholeLung"),
     aes(y = mucus_score),
     position = position_nudge(x = 0.6),
     width = 0.15) +
   geom_boxplot(
-    data = filter(mucus_plugging, timepoint == 'FOLLOWUP', lobe == "WholeLung"),
+    data = filter(plot_df, timepoint == 'FOLLOWUP', lobe == "WholeLung"),
     aes(y = mucus_score),
     position = position_nudge(x = 2.4),
     width = 0.15) +
@@ -622,6 +623,7 @@ mucus_plugging %>%
     inherit.aes = FALSE,
     hjust = ifelse(value_counts$timepoint == "BASELINE", 1, 0)
   ) +
+  facet_wrap( ~ Blood_eos_cat) +
   theme(legend.position="none") +
   ylab("Mucus score") +
   labs(
@@ -632,8 +634,8 @@ mucus_plugging %>%
     limits = c(0, 15),          # Set range of y-axis
     breaks = seq(0, 15, by = 1) # Tick marks every 1 unit
   ) +
-  theme(panel.grid.minor = element_blank()) +
-  facet_wrap( ~ Blood_eos_cat)
+  theme(panel.grid.minor = element_blank())
+  
 ggsave('mucus_plug_eos_spaghetti_total_faceted.png')
 
 # Total mucus score over time by daydiff_cat
