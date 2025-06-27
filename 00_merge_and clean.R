@@ -343,7 +343,7 @@ table2 = df %>%
 save_as_html(flextable(table2), path = 'table2.html')
 
 # Scatterplot of dPi10 vs dmucus_score
-t = df %>%
+df %>%
   left_join(mucus_plugging) %>%
   filter(region == "Total") %>%
   select(PatientID, timepoint, region, lobe, mucus_score, Pi10_LevelWhole_WholeLung) %>%
@@ -353,12 +353,55 @@ t = df %>%
     dPi10 = Pi10_LevelWhole_WholeLung - lag(Pi10_LevelWhole_WholeLung),
     dmucus = mucus_score - lag(mucus_score)
     ) %>%
-  fill(dPi10, dmucus, .direction = "up")
+  fill(dPi10, dmucus, .direction = "up") %>%
+  select(PatientID, dPi10, dmucus) %>%
+  distinct() %>%
+  ggplot(mapping = aes(x = dPi10, y = dmucus)) +
+  geom_point() +
+  geom_hline(yintercept = 0) + 
+  geom_vline(xintercept = 0)
+
+ggsave(paste("scatter_dPi10_dMucus", generation, ".png", sep = ""))
+
+heatmap_df = df %>%
+  left_join(mucus_plugging) %>%
+  filter(region == "Total") %>%
+  select(PatientID, timepoint, region, lobe, mucus_score, Pi10_LevelWhole_WholeLung) %>%
+  arrange(PatientID, timepoint)
+
+x = heatmap_df %>%
+  filter(timepoint == "BASELINE") %>%
+  select(mucus_score)
+
+y = heatmap_df %>%
+  filter(timepoint == "FOLLOWUP") %>%
+  select(mucus_score)
+
+heatmap_df = x %>%
+  bind_cols(y) %>%
+  group_by(mucus_score...1, mucus_score...2) %>%
+  mutate(count = n())
 
 
+heatmap_df %>%
+  ggplot(
+    aes(
+      x = mucus_score...1,
+      y = mucus_score...2,
+      fill = count
+      )
+    ) +
+  geom_tile() + 
+  scale_x_continuous(
+    limits = c(-1, 15),          # Set range of x-axis
+    breaks = seq(0, 15, by = 1) # Tick marks every 1 unit
+  ) + 
+  scale_y_continuous(
+    limits = c(-1, 15),          # Set range of y-axis
+    breaks = seq(0, 15, by = 1) # Tick marks every 1 unit
+  )
 
-  
-
+ggsave(paste("heatmap_mucus", generation, ".png", sep = ""))
 
 # Luminal Area plots
 longer_df = df %>%
