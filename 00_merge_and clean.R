@@ -342,6 +342,24 @@ table2 = df %>%
   )
 save_as_html(flextable(table2), path = 'table2.html')
 
+# Scatterplot of dPi10 vs dmucus_score
+t = df %>%
+  left_join(mucus_plugging) %>%
+  filter(region == "Total") %>%
+  select(PatientID, timepoint, region, lobe, mucus_score, Pi10_LevelWhole_WholeLung) %>%
+  arrange(PatientID, timepoint) %>%
+  group_by(PatientID) %>%
+  mutate(
+    dPi10 = Pi10_LevelWhole_WholeLung - lag(Pi10_LevelWhole_WholeLung),
+    dmucus = mucus_score - lag(mucus_score)
+    ) %>%
+  fill(dPi10, dmucus, .direction = "up")
+
+
+
+  
+
+
 # Luminal Area plots
 longer_df = df %>%
   pivot_longer(
@@ -533,7 +551,6 @@ mucus_plugging %>%
   )
 ggsave('mucus_plug_eos_spaghetti_by_lobe.png')
 
-
 value_counts <- mucus_plugging %>%
   left_join(timeseries_categories) %>%
   inner_join(blood_eos) %>%
@@ -583,7 +600,6 @@ mucus_plugging %>%
   ) +
   theme(panel.grid.minor = element_blank())
 ggsave('mucus_plug_eos_spaghetti_total.png')
-
 
 value_counts <- mucus_plugging %>%
   left_join(timeseries_categories) %>%
@@ -674,7 +690,6 @@ filter(mucus_plugging, timepoint == 'FOLLOWUP', lobe == "WholeLung") %>%
 # shapiro.test(filter(mucus_plugging, timepoint == 'BASELINE', lobe == "WholeLung")$mucus_score)
 # hist(filter(mucus_plugging, timepoint == 'BASELINE', lobe == "WholeLung")$mucus_score)
 # hist(filter(mucus_plugging, timepoint == 'FOLLOWUP', lobe == "WholeLung")$mucus_score)
-
 
 value_counts <- mucus_plugging %>%
   left_join(timeseries_categories) %>%
